@@ -1,0 +1,145 @@
+---
+title: "Human Activity Recognition-Predicting Styles of Weight-Lifters"
+author: Shiva
+---
+
+##Executive Summary
+ Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).The goal of this report is to predict the manner in which they did the exercise i.e; categorizing them into a particular Class using 'classe' variable.This detailed analysis has been performed to fulfill the requirements of the course project for the course Practical Machine Learning offered by the Johns Hopkins University on Coursera.
+ 
+##Data-PreProcessing
+ Well the data is provided from the source: http://groupware.les.inf.puc-rio.br/har.
+ 
+####Setting up the required environment
+```{r warning=FALSE,results='hide' }
+library(caret)
+library(ggplot2)
+library(pander)
+library(knitr)
+library(xtable)
+library(randomForest)
+```
+####Downloading and loadind Data into R
+```{r}
+downloadDataset <- function(URL="", destFile="data.csv"){
+        if(!file.exists(destFile)){
+                download.file(URL, destFile, method="curl")
+        }else{
+                message("Dataset already downloaded.")
+        }
+}
+
+trainURL<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+
+training <- read.csv("pml-training.csv",na.strings=c("NA",""))
+testing <-read.csv("pml-testing.csv",na.strings=c("NA",""))
+
+training[1:5,c("user_name","classe","num_window")]
+testing[1:5,c("user_name","num_window")]
+```
+
+
+##Processing and Transforming Data
+We can take off the columns which have missing values and some Excel-oriented values. To do that, first look at the number of NA values in training data set.
+```{r}
+
+sum(is.na(training))
+
+table(colSums(is.na(training)))
+table(colSums(is.na(testing)))
+```
+
+So,it shows that there 60 variables does not habe `NA` variables, while the remaining variables have `NA` values. In the following chunk, we will try to eliminate all those unwanted columns.
+
+```{r}
+#for training data
+columnNACounts <- colSums(is.na(training))     
+badColumns <- columnNACounts >= 19000             
+cleanTrainingdata <- training[!badColumns]        
+cleanTrainingdata <- cleanTrainingdata[, c(7:60)]
+sum(is.na(cleanTrainingdata))
+#for testing data
+columnNACounts <- colSums(is.na(testing))        
+badColumns <- columnNACounts >= 20             
+cleanTestingdata <- testing[!badColumns]        
+cleanTestingdata <- cleanTestingdata[, c(7:60)]
+sum(is.na(cleanTestingdata))
+```
+
+As we don't have any `NA` values, lets go for our analysis.
+
+##Building our model for prediction
+
+We will build a machine learning model for predicting the classe value based on the other features of the dataset(53 in number).
+
+####Data partitioning and Model Building
+
+First we partition the cleanTrainingdata dataset into training and testing data sets for building our model using the following code.
+
+```{r}
+partition <- createDataPartition(y = cleanTrainingdata$classe, p = 0.6,list = FALSE)
+trainingdata <- cleanTrainingdata[partition, ]
+testdata <- cleanTrainingdata[-partition, ]
+```
+
+Now, using the remaining features in the trainingdata dataset, lets build our model using the Random Forest machine learning technique(efficiency).
+
+```{r}
+model <- train(classe ~ ., data = trainingdata, method = "rf")
+model
+```
+
+####In-sample Accuracy
+
+Let's have a look at sample accuracy which is the prediction accuracy of our model on the training data set.
+
+```{r}
+training_pred <- predict(model, trainingdata)
+confusionMatrix(training_pred, trainingdata$classe)
+```
+
+Thus from the above statistics we see that the in sample accuracy value is 1 which is 100%. 
+
+
+####Out of sample accuracy
+
+Now, let's calculate the out of sample accuracy which is the prediction accuracy of our model on the testing data set.
+
+```{r}
+testing_pred <- predict(model, testdata)
+confusionMatrix(testing_pred, testdata$classe)
+```
+
+Thus from the above statistics we see that the out of sample accuracy value is 0.998 which is 99.8%.
+
+##Prediction Algorithm
+
+Here, we apply the machine learning algorithm we built above, to each of the 20 test cases in the testing data set provided.
+
+```{r}
+answers <- predict(model, cleanTestingdata)
+answers <- as.character(answers)
+answers
+```
+
+Finally, we write the answers to files as specified by the course instructor using the following code segment.
+
+```{r}
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+pml_write_files(answers)
+```
+
+##Conclusion
+
+We chose Random Forest as our machine learning algorithm for building our model because, it builds a highly accurate classifier and can handle thousands of variables and lot more.
+
+We also obtained a really good accuracy based on the statistics we obtained above.
+
